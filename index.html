@@ -14,6 +14,10 @@ h1,h2{font-weight:700;letter-spacing:.08em;text-transform:uppercase}
 h1{font-size:clamp(1.4rem,4vw,2.2rem);color:var(--neon);text-shadow:var(--glow);margin-bottom:8px}
 h2{font-size:1rem;color:var(--pink);margin-bottom:16px}
 .sub{color:var(--dim);font-size:.9rem;margin-bottom:24px}
+.hdr-row{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:8px}
+.bypass-link{background:none;border:none;padding:0;font:inherit;font-size:.72rem;color:rgba(106,106,154,.65);letter-spacing:.04em;text-transform:none;cursor:pointer;text-decoration:underline;text-decoration-color:rgba(106,106,154,.35);text-underline-offset:3px;font-style:italic}
+.bypass-link:hover{color:var(--warn);text-decoration-color:var(--warn)}
+#bypass-toast{margin-top:8px;font-size:.8rem;color:var(--warn);font-style:italic;min-height:1.2em;animation:fadeIn .3s ease}
 .panel{background:var(--panel);border:1px solid rgba(0,255,255,.25);border-radius:4px;padding:20px;box-shadow:inset 0 0 40px rgba(0,255,255,.04),0 0 20px rgba(240,0,255,.08);animation:fadeIn .5s ease}
 @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
@@ -65,8 +69,12 @@ h2{font-size:1rem;color:var(--pink);margin-bottom:16px}
 <div class="scanline"></div>
 <div id="app">
   <header>
-    <h1>Tricky Paradox Game</h1>
+    <div class="hdr-row">
+      <h1>Tricky Paradox Game</h1>
+      <button type="button" class="bypass-link" id="bypass-btn" title="Transplant the level's brain and skip ahead">Logic Bypass</button>
+    </div>
     <p class="sub">Five mind-bending stages. Break logic. Prove you are code.</p>
+    <div id="bypass-toast"></div>
   </header>
   <div class="progress" id="progress"></div>
   <div id="screen"></div>
@@ -135,7 +143,7 @@ function stage1Init(state){
 function stage1Catch(state,method,now){
   const s=clone(state);
   s.stage1.attempts++;
-  if(method==='keyboard'){
+  if(method==='keyboard'||method==='touch_click'){
     s.stage1.caught=true;
     return{ok:true,state:s};
   }
@@ -146,14 +154,48 @@ function stage1Catch(state,method,now){
   return{ok:false,state:s,reason:method==='pause_click'?'missed_freeze':'wrong_method'};
 }
 
-function stage1FleePos(mx,my,btnX,btnY,arenaW,arenaH,btnW,btnH,frozen){
+function stage1FleePos(mx,my,btnX,btnY,arenaW,arenaH,btnW,btnH,frozen,coarsePointer){
   if(frozen)return{x:(arenaW-btnW)/2,y:(arenaH-btnH)/2};
+  if(coarsePointer)return{x:btnX,y:btnY};
   const cx=btnX+btnW/2,cy=btnY+btnH/2;
   const dx=cx-mx,dy=cy-my;
   const dist=Math.hypot(dx,dy)||1;
   if(dist>90)return{x:btnX,y:btnY};
   const nx=btnX+dx/dist*28,ny=btnY+dy/dist*28;
   return{x:Math.max(0,Math.min(arenaW-btnW,nx)),y:Math.max(0,Math.min(arenaH-btnH,ny))};
+}
+
+function isCoarsePointer(){
+  if(typeof window!=='undefined'&&window.matchMedia)return window.matchMedia('(pointer: coarse)').matches;
+  return false;
+}
+
+const BYPASS_COMMENTS={
+  intro:'Reality bootloader skipped. You cheated the tutorial dimension.',
+  stage1:'Neural transplant complete. You stole the button\'s flee reflex.',
+  stage2:'Logic bypass engaged. Both guards forgot which door kills you.',
+  stage3:'Wavefunction hacked. Schrödinger never filed the paperwork.',
+  stage4:'Self-reference loop severed. The quiz answers itself now.',
+  stage5:'Turing test inverted. You proved you are too impatient to be human.'
+};
+
+function solveCurrentStage(s){
+  if(s.stage==='stage1')s.stage1.caught=true;
+  else if(s.stage==='stage2')s.stage2.solved=true;
+  else if(s.stage==='stage3')s.stage3.synced=true;
+  else if(s.stage==='stage4'){s.stage4.solved=true;s.stage4.index=PARADOX_QUESTIONS.length;}
+  else if(s.stage==='stage5'){s.stage5.solved=true;s.stage5.correct=STAGE5_REQUIRED;}
+}
+
+function bypassStage(state){
+  const st=state.stage;
+  if(st==='victory')return{ok:false,state:clone(state),reason:'no_bypass'};
+  const s=clone(state);
+  if(st!=='intro')solveCurrentStage(s);
+  if(!canAdvance(s))return{ok:false,state:s,reason:'bypass_failed'};
+  let out=advanceStage(s);
+  if(out.stage==='stage1')out=stage1Init(out);
+  return{ok:true,state:out,comment:BYPASS_COMMENTS[st]||'Reality glitch.',bypassed:st};
 }
 
 function stage2Scenario(seed){
@@ -269,8 +311,10 @@ return{
   STAGE3_PERIOD_MS,STAGE3_TOLERANCE,
   STAGE5_REQUIRED,STAGE5_TIME_MS,
   PARADOX_QUESTIONS,
+  BYPASS_COMMENTS,
   createState,clone,isValidStage,stageIndex,canAdvance,advanceStage,
-  stage1Init,stage1Tick,stage1Catch,stage1FleePos,
+  stage1Init,stage1Tick,stage1Catch,stage1FleePos,isCoarsePointer,
+  solveCurrentStage,bypassStage,
   stage2Scenario,stage2Statement,stage2Choose,
   stage3Phase,stage3InWindow,stage3Click,
   stage4Question,stage4Answer,
@@ -306,9 +350,24 @@ const $=id=>document.getElementById(id);
 let state=GameEngine.createState();
 let raf=0,stage3T0=0,stage5Seed=7;
 let btnX=40,btnY=40,mx=0,my=0;
-const screen=$('screen'),progress=$('progress');
+const screen=$('screen'),progress=$('progress'),bypassToast=$('bypass-toast');
+let bypassTimer=0;
 
 function setState(s){state=s;render();}
+
+function showBypassToast(txt){
+  clearTimeout(bypassTimer);
+  bypassToast.textContent=txt||'';
+  if(txt)bypassTimer=setTimeout(()=>{bypassToast.textContent='';},4200);
+}
+
+function handleBypass(){
+  const res=GameEngine.bypassStage(state);
+  if(!res.ok)return;
+  AudioFX.click();
+  showBypassToast(res.comment);
+  setState(res.state);
+}
 
 function renderProgress(){
   const dots=GameEngine.progressDots(state);
@@ -334,17 +393,18 @@ function renderIntro(){
 }
 
 function renderStage1(){
-  screen.innerHTML=`<div class="panel"><h2>Stage 1 — The Teleporting Button</h2><p>It flees your cursor. Catch it during the <span style="color:var(--lime)">lime freeze</span> or trap it with <kbd>Tab</kbd>+<kbd>Enter</kbd>.</p><div id="stage1-arena"><button class="btn" id="teleport-btn">Catch Me</button></div><p class="hint">Attempts: <span id="s1-att">${state.stage1.attempts}</span></p><div id="s1-msg"></div><button class="btn lime hidden" id="s1-next">Proceed</button></div>`;
+  const touchMode=GameEngine.isCoarsePointer();
+  screen.innerHTML=`<div class="panel"><h2>Stage 1 — The Teleporting Button</h2><p>${touchMode?'Tap the button to catch it.':'It flees your cursor. Catch it during the <span style="color:var(--lime)">lime freeze</span> or trap it with <kbd>Tab</kbd>+<kbd>Enter</kbd>.'}</p><div id="stage1-arena"><button class="btn" id="teleport-btn">Catch Me</button></div><p class="hint">Attempts: <span id="s1-att">${state.stage1.attempts}</span></p><div id="s1-msg"></div><button class="btn lime hidden" id="s1-next">Proceed</button></div>`;
   const arena=$('stage1-arena'),btn=$('teleport-btn');
   const aw=arena.clientWidth,ah=arena.clientHeight,bw=btn.offsetWidth,bh=btn.offsetHeight;
-  let frozen=false,freezeEnd=0;
+  let frozen=false,freezeEnd=0,coarse=touchMode;
   const now=performance.now();
   if(!state.stage1._boot){state.stage1._boot=now;state.stage1.nextPause=now+GameEngine.STAGE1_PAUSE_INTERVAL_MS;}
   function loop(t){
     if(state.stage!=='stage1')return;
     frozen=t>=state.stage1.nextPause&&t<state.stage1.nextPause+GameEngine.STAGE1_FREEZE_MS;
     if(t>=state.stage1.nextPause+GameEngine.STAGE1_PAUSE_INTERVAL_MS)state.stage1.nextPause+=GameEngine.STAGE1_PAUSE_INTERVAL_MS;
-    const pos=GameEngine.stage1FleePos(mx,my,btnX,btnY,aw,ah,bw,bh,frozen);
+    const pos=GameEngine.stage1FleePos(mx,my,btnX,btnY,aw,ah,bw,bh,frozen,coarse);
     btnX=pos.x;btnY=pos.y;
     btn.style.left=btnX+'px';btn.style.top=btnY+'px';
     btn.classList.toggle('frozen',frozen);
@@ -353,13 +413,15 @@ function renderStage1(){
     raf=requestAnimationFrame(loop);
   }
   cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);
-  arena.onmousemove=e=>{const r=arena.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top;};
-  btn.onmousedown=e=>{e.preventDefault();AudioFX.teleport();const r=GameEngine.stage1Catch(state,'click',performance.now());};
+  if(!coarse)arena.onmousemove=e=>{const r=arena.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top;};
+  arena.addEventListener('touchstart',()=>{coarse=true;},{passive:true});
+  btn.onmousedown=e=>{if(coarse)return;e.preventDefault();AudioFX.teleport();};
   btn.onclick=()=>{
-    const res=GameEngine.stage1Catch(state,frozen?'pause_click':'click',performance.now());
+    const method=coarse?'touch_click':(frozen?'pause_click':'click');
+    const res=GameEngine.stage1Catch(state,method,performance.now());
     state=res.state;
     $('s1-att').textContent=state.stage1.attempts;
-    if(res.ok){AudioFX.ok();showMsg($('s1-msg'),'Captured! The button is trapped.','ok');$('s1-next').classList.remove('hidden');}
+    if(res.ok){AudioFX.ok();showMsg($('s1-msg'),coarse?'Tapped! Touch beats teleport.':'Captured! The button is trapped.','ok');$('s1-next').classList.remove('hidden');}
     else showMsg($('s1-msg'),frozen?'Too slow — freeze ended.':'It teleported away. Wait for the lime glow.','err');
   };
   document.onkeydown=e=>{
@@ -481,7 +543,7 @@ function renderVictory(){
   $('restart-btn').onclick=()=>{AudioFX.click();state=GameEngine.createState();setState(state);};
 }
 
-return{init(){render();}};
+return{init(){render();$('bypass-btn').onclick=handleBypass;}};
 })();
 
 document.addEventListener('DOMContentLoaded',()=>UI.init());

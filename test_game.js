@@ -167,6 +167,21 @@ test('stage1FleePos stays when cursor far', () => {
   eq(p.x, 40); eq(p.y, 40);
 });
 
+test('stage1FleePos coarse pointer ignores cursor proximity', () => {
+  const p = G.stage1FleePos(50, 50, 40, 40, 200, 100, 80, 30, false, true);
+  eq(p.x, 40); eq(p.y, 40);
+});
+
+test('stage1Catch touch_click always succeeds', () => {
+  let s = G.createState(); s.stage = 'stage1';
+  const r = G.stage1Catch(s, 'touch_click', 0);
+  ok(r.ok); ok(r.state.stage1.caught); eq(r.state.stage1.attempts, 1);
+});
+
+test('isCoarsePointer false without window', () => {
+  ok(!G.isCoarsePointer());
+});
+
 test('stage2Scenario deterministic from seed', () => {
   const a = G.stage2Scenario(42);
   const b = G.stage2Scenario(42);
@@ -375,6 +390,80 @@ test('index.html contains required UI and engine markers', () => {
   ok(html.includes('Stage 5 — The Reverse Turing Test'));
   ok(html.includes('AudioFX'));
   ok(html.includes('id="screen"'));
+  ok(html.includes('Logic Bypass'));
+  ok(html.includes('bypass-btn'));
+});
+
+test('BYPASS_COMMENTS cover playable stages', () => {
+  ['intro', 'stage1', 'stage2', 'stage3', 'stage4', 'stage5'].forEach(st => {
+    ok(G.BYPASS_COMMENTS[st]);
+    ok(G.BYPASS_COMMENTS[st].length > 10);
+  });
+});
+
+test('bypassStage intro advances to stage1 with init', () => {
+  const r = G.bypassStage(G.createState());
+  ok(r.ok); eq(r.state.stage, 'stage1'); eq(r.bypassed, 'intro');
+  ok(r.comment); eq(r.state.stage1.pauseInterval, G.STAGE1_PAUSE_INTERVAL_MS);
+  eq(r.state.completed.length, 0);
+});
+
+test('bypassStage stage1 advances to stage2', () => {
+  let s = G.createState(); s.stage = 'stage1';
+  const r = G.bypassStage(s);
+  ok(r.ok); eq(r.state.stage, 'stage2'); eq(r.bypassed, 'stage1');
+  ok(r.state.completed.includes('stage1'));
+  ok(r.state.stage1.caught);
+});
+
+test('bypassStage stage2 advances to stage3', () => {
+  let s = G.createState(); s.stage = 'stage2';
+  const r = G.bypassStage(s);
+  ok(r.ok); eq(r.state.stage, 'stage3'); ok(r.state.stage2.solved);
+});
+
+test('bypassStage stage3 advances to stage4', () => {
+  let s = G.createState(); s.stage = 'stage3';
+  const r = G.bypassStage(s);
+  ok(r.ok); eq(r.state.stage, 'stage4'); ok(r.state.stage3.synced);
+});
+
+test('bypassStage stage4 advances to stage5', () => {
+  let s = G.createState(); s.stage = 'stage4';
+  const r = G.bypassStage(s);
+  ok(r.ok); eq(r.state.stage, 'stage5'); ok(r.state.stage4.solved);
+  eq(r.state.stage4.index, G.PARADOX_QUESTIONS.length);
+});
+
+test('bypassStage stage5 advances to victory', () => {
+  let s = G.createState(); s.stage = 'stage5';
+  const r = G.bypassStage(s);
+  ok(r.ok); eq(r.state.stage, 'victory'); ok(r.state.stage5.solved);
+  eq(r.state.stage5.correct, G.STAGE5_REQUIRED);
+  ok(r.state.completed.includes('stage5'));
+});
+
+test('bypassStage victory refuses', () => {
+  let s = G.createState(); s.stage = 'victory';
+  const r = G.bypassStage(s);
+  ok(!r.ok); eq(r.reason, 'no_bypass');
+});
+
+test('bypassStage full chain reaches victory', () => {
+  let s = G.createState();
+  for (let i = 0; i < 6; i++) {
+    const r = G.bypassStage(s);
+    ok(r.ok, 'bypass ' + i);
+    s = r.state;
+  }
+  eq(s.stage, 'victory');
+  eq(s.completed.length, 5);
+});
+
+test('solveCurrentStage marks stage1 caught only', () => {
+  const s = G.createState(); s.stage = 'stage1';
+  G.solveCurrentStage(s);
+  ok(s.stage1.caught); ok(!s.stage2.solved);
 });
 
 test('stage2 logic consistent for all 4 scenarios', () => {
