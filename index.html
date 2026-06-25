@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tricky Paradox Game</title>
+<style>
+:root{--bg:#0a0a12;--panel:#12121f;--neon:#0ff;--pink:#f0f;--lime:#0f6;--warn:#fc0;--text:#e8e8ff;--dim:#6a6a9a;--glow:0 0 8px var(--neon),0 0 24px rgba(0,255,255,.35)}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font:16px/1.5 "Segoe UI",system-ui,sans-serif;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,255,255,.03) 2px,rgba(0,255,255,.03) 4px);pointer-events:none;z-index:0}
+#app{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:24px 16px 48px}
+h1,h2{font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+h1{font-size:clamp(1.4rem,4vw,2.2rem);color:var(--neon);text-shadow:var(--glow);margin-bottom:8px}
+h2{font-size:1rem;color:var(--pink);margin-bottom:16px}
+.sub{color:var(--dim);font-size:.9rem;margin-bottom:24px}
+.panel{background:var(--panel);border:1px solid rgba(0,255,255,.25);border-radius:4px;padding:20px;box-shadow:inset 0 0 40px rgba(0,255,255,.04),0 0 20px rgba(240,0,255,.08);animation:fadeIn .5s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes scan{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+.scanline{position:fixed;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--neon),transparent);opacity:.25;animation:scan 6s linear infinite;pointer-events:none;z-index:99}
+.progress{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+.dot{width:28px;height:6px;background:rgba(255,255,255,.1);border-radius:2px;transition:background .3s,box-shadow .3s}
+.dot.done{background:var(--lime);box-shadow:0 0 8px var(--lime)}
+.dot.active{background:var(--neon);box-shadow:var(--glow)}
+.btn{display:inline-block;padding:10px 20px;border:1px solid var(--neon);background:rgba(0,255,255,.08);color:var(--neon);font:inherit;font-weight:600;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;border-radius:2px;transition:background .15s,transform .1s,box-shadow .15s;user-select:none}
+.btn:hover{background:rgba(0,255,255,.18);box-shadow:var(--glow)}
+.btn:active{transform:scale(.97)}
+.btn.pink{border-color:var(--pink);color:var(--pink);background:rgba(240,0,255,.08)}
+.btn.pink:hover{background:rgba(240,0,255,.18);box-shadow:0 0 8px var(--pink),0 0 24px rgba(240,0,255,.35)}
+.btn.lime{border-color:var(--lime);color:var(--lime);background:rgba(0,255,102,.08)}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.hint{font-size:.85rem;color:var(--dim);margin-top:12px;font-style:italic}
+.msg{margin-top:12px;padding:10px;border-radius:2px;font-size:.9rem;animation:fadeIn .3s}
+.msg.ok{border:1px solid var(--lime);color:var(--lime);background:rgba(0,255,102,.06)}
+.msg.err{border:1px solid var(--pink);color:var(--pink);background:rgba(240,0,255,.06)}
+.msg.info{border:1px solid var(--neon);color:var(--neon);background:rgba(0,255,255,.06)}
+.hidden{display:none!important}
+#stage1-arena{position:relative;height:220px;border:1px dashed rgba(0,255,255,.2);border-radius:4px;margin:16px 0;overflow:hidden}
+#teleport-btn{position:absolute;padding:12px 18px;white-space:nowrap;transition:left .08s linear,top .08s linear}
+#teleport-btn.frozen{border-color:var(--lime);color:var(--lime);box-shadow:0 0 12px var(--lime)}
+.doors{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+.door{padding:20px;border:2px solid rgba(240,0,255,.4);border-radius:4px;cursor:pointer;text-align:center;transition:border-color .2s,box-shadow .2s}
+.door:hover{border-color:var(--pink);box-shadow:0 0 16px rgba(240,0,255,.3)}
+.door .guard{font-size:.8rem;color:var(--dim);margin-top:8px}
+.guard-card{margin:12px 0;padding:12px;border-left:3px solid var(--neon);background:rgba(0,255,255,.04);font-size:.9rem}
+#wave-canvas{display:block;width:100%;height:120px;margin:12px 0;border:1px solid rgba(0,255,255,.2);border-radius:4px;background:#080810}
+.wave-hud{display:flex;justify-content:space-between;font-size:.85rem;color:var(--dim);margin-bottom:8px}
+.wave-hud .peak{color:var(--lime)}
+.quiz-q{margin:16px 0;padding:16px;border:1px solid rgba(240,0,255,.3);border-radius:4px;font-size:1.05rem;line-height:1.6}
+.quiz-opts{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+#turing-prompt{font-family:"Courier New",monospace;font-size:1.3rem;color:var(--lime);text-align:center;padding:20px;letter-spacing:.1em}
+#turing-timer{height:4px;background:rgba(255,255,255,.1);border-radius:2px;margin:12px 0;overflow:hidden}
+#turing-timer-fill{height:100%;background:var(--warn);width:100%;transition:width .05s linear}
+#victory{text-align:center;padding:32px 16px}
+#victory .trophy{font-size:4rem;animation:pulse 2s ease infinite}
+#victory p{margin:12px 0;color:var(--dim)}
+.stats{display:flex;justify-content:center;gap:24px;margin:20px 0;flex-wrap:wrap}
+.stat-val{font-size:1.8rem;color:var(--neon);font-weight:700}
+.stat-lbl{font-size:.75rem;color:var(--dim);text-transform:uppercase}
+@media(max-width:600px){.doors{grid-template-columns:1fr}#stage1-arena{height:180px}}
+</style>
+</head>
+<body>
+<div class="scanline"></div>
+<div id="app">
+  <header>
+    <h1>Tricky Paradox Game</h1>
+    <p class="sub">Five mind-bending stages. Break logic. Prove you are code.</p>
+  </header>
+  <div class="progress" id="progress"></div>
+  <div id="screen"></div>
+</div>
+<script>
+/* GAME_ENGINE_START */
+const GameEngine=(function(){
+const STAGES=['intro','stage1','stage2','stage3','stage4','stage5','victory'];
+const STAGE_NAMES=['Intro','Teleport','Liar Gate','Schrödinger','Paradox Quiz','Reverse Turing','Victory'];
+const TOTAL_STAGES=5;
+const STAGE1_FREEZE_MS=400;
+const STAGE1_PAUSE_INTERVAL_MS=3000;
+const STAGE3_PERIOD_MS=2000;
+const STAGE3_TOLERANCE=0.08;
+const STAGE5_REQUIRED=5;
+const STAGE5_TIME_MS=2500;
+
+function createState(){
+  return{stage:'intro',startedAt:0,stage1:{caught:false,attempts:0,freezeUntil:0},stage2:{truthGuard:1,safeDoor:2,chosen:null,solved:false},stage3:{synced:false,clicks:0},stage4:{index:0,answers:[],solved:false},stage5:{index:0,correct:0,current:null,deadline:0,solved:false},completed:[]};
+}
+
+function stageIndex(stage){return STAGES.indexOf(stage);}
+
+function isValidStage(s){return STAGES.includes(s);}
+
+function canAdvance(state){
+  if(state.stage==='intro')return true;
+  if(state.stage==='stage1')return state.stage1.caught;
+  if(state.stage==='stage2')return state.stage2.solved;
+  if(state.stage==='stage3')return state.stage3.synced;
+  if(state.stage==='stage4')return state.stage4.solved;
+  if(state.stage==='stage5')return state.stage5.solved;
+  return false;
+}
+
+function advanceStage(state){
+  const i=stageIndex(state.stage);
+  if(i<0||i>=STAGES.length-1)return state;
+  if(!canAdvance(state))return state;
+  const next=STAGES[i+1];
+  const out=clone(state);
+  if(out.stage!=='intro'&&!out.completed.includes(out.stage))out.completed.push(out.stage);
+  out.stage=next;
+  return out;
+}
+
+function clone(s){return JSON.parse(JSON.stringify(s));}
+
+function stage1Tick(state,now,arenaW,arenaH,btnW,btnH){
+  const s=clone(state);
+  const pause=now%s.stage1.pauseInterval===0||(s.stage1.freezeUntil&&now<s.stage1.freezeUntil);
+  if(!s.stage1.freezeUntil&&now%s.stage1.pauseInterval<STAGE1_FREEZE_MS){
+    s.stage1.freezeUntil=now+STAGE1_FREEZE_MS;
+    s.stage1.frozenPos={x:(arenaW-btnW)/2,y:(arenaH-btnH)/2};
+  }
+  return s;
+}
+
+function stage1Init(state){
+  const s=clone(state);
+  s.stage1.pauseInterval=STAGE1_PAUSE_INTERVAL_MS;
+  s.stage1.freezeUntil=0;
+  return s;
+}
+
+function stage1Catch(state,method,now){
+  const s=clone(state);
+  s.stage1.attempts++;
+  if(method==='keyboard'){
+    s.stage1.caught=true;
+    return{ok:true,state:s};
+  }
+  if(method==='pause_click'&&s.stage1.freezeUntil&&now<s.stage1.freezeUntil){
+    s.stage1.caught=true;
+    return{ok:true,state:s};
+  }
+  return{ok:false,state:s,reason:method==='pause_click'?'missed_freeze':'wrong_method'};
+}
+
+function stage1FleePos(mx,my,btnX,btnY,arenaW,arenaH,btnW,btnH,frozen){
+  if(frozen)return{x:(arenaW-btnW)/2,y:(arenaH-btnH)/2};
+  const cx=btnX+btnW/2,cy=btnY+btnH/2;
+  const dx=cx-mx,dy=cy-my;
+  const dist=Math.hypot(dx,dy)||1;
+  if(dist>90)return{x:btnX,y:btnY};
+  const nx=btnX+dx/dist*28,ny=btnY+dy/dist*28;
+  return{x:Math.max(0,Math.min(arenaW-btnW,nx)),y:Math.max(0,Math.min(arenaH-btnH,ny))};
+}
+
+function stage2Scenario(seed){
+  const truthGuard=seed%2+1;
+  const safeDoor=((seed>>1)%2)+1;
+  return{truthGuard,safeDoor};
+}
+
+function stage2Statement(guardDoor,truthGuard,safeDoor){
+  const isTruth=guardDoor===truthGuard;
+  const safe=safeDoor===1?'ALPHA':'BETA';
+  const trap=safeDoor===1?'BETA':'ALPHA';
+  return isTruth?`Door ${safe} leads to the next stage.`:`Door ${trap} leads to the next stage.`;
+}
+
+function stage2Choose(state,door){
+  const s=clone(state);
+  s.stage2.chosen=door;
+  s.stage2.solved=door===s.stage2.safeDoor;
+  return{ok:s.stage2.solved,state:s,reason:s.stage2.solved?'correct_door':'wrong_door'};
+}
+
+function stage3Phase(now,t0){return((now-t0)%STAGE3_PERIOD_MS)/STAGE3_PERIOD_MS;}
+
+function stage3InWindow(phase){
+  const wave=Math.sin(phase*Math.PI*2);
+  return wave>=1-STAGE3_TOLERANCE*2;
+}
+
+function stage3Click(state,now,t0){
+  const s=clone(state);
+  s.stage3.clicks++;
+  const phase=stage3Phase(now,t0);
+  if(stage3InWindow(phase)){
+    s.stage3.synced=true;
+    return{ok:true,state:s,phase};
+  }
+  return{ok:false,state:s,phase,reason:'decay'};
+}
+
+const PARADOX_QUESTIONS=[
+  {id:0,text:'The correct answer to THIS question is "No". Is that statement correct?',resolve:(ans)=>ans==='no'},
+  {id:1,text:'If you answer "Yes", this question becomes false. Is the question true?',resolve:(ans)=>ans==='no'},
+  {id:2,text:'This sentence is false. Is the sentence true?',resolve:(ans)=>ans==='no'}
+];
+
+function stage4Question(i){return PARADOX_QUESTIONS[i]||null;}
+
+function stage4Answer(state,ans){
+  const s=clone(state);
+  const q=PARADOX_QUESTIONS[s.stage4.index];
+  if(!q)return{ok:false,state:s,reason:'no_question'};
+  const normalized=String(ans).toLowerCase();
+  const correct=q.resolve(normalized);
+  s.stage4.answers.push({q:q.id,ans:normalized,correct});
+  if(correct){
+    s.stage4.index++;
+    if(s.stage4.index>=PARADOX_QUESTIONS.length)s.stage4.solved=true;
+  }
+  return{ok:correct,state:s,reason:correct?'resolved':'paradox'};
+}
+
+function stage5Sequence(seed){
+  const ops=[
+    ()=>({prompt:'0x2A + 0b1011 = ?',answer:53}),
+    ()=>({prompt:'7! ÷ 7 = ?',answer:720}),
+    ()=>({prompt:'(1010₂ × 3)₁₀ = ?',answer:30}),
+    ()=>({prompt:'∑(1..5) = ?',answer:15}),
+    ()=>({prompt:'0xFF − 0xF0 = ?',answer:15}),
+    ()=>({prompt:'2⁵ + 2⁴ = ?',answer:48})
+  ];
+  return ops[seed%ops.length]();
+}
+
+function stage5StartRound(state,now,seed){
+  const s=clone(state);
+  const item=stage5Sequence(seed+s.stage5.index);
+  s.stage5.current=item;
+  s.stage5.deadline=now+STAGE5_TIME_MS;
+  return s;
+}
+
+function stage5Submit(state,raw,now){
+  const s=clone(state);
+  if(!s.stage5.current)return{ok:false,state:s,reason:'no_round'};
+  const val=parseInt(String(raw).trim(),10);
+  const timed=now<=s.stage5.deadline;
+  if(!timed)return{ok:false,state:s,reason:'too_human'};
+  if(val!==s.stage5.current.answer)return{ok:false,state:s,reason:'wrong_math'};
+  s.stage5.correct++;
+  s.stage5.index++;
+  s.stage5.current=null;
+  if(s.stage5.correct>=STAGE5_REQUIRED)s.stage5.solved=true;
+  return{ok:true,state:s};
+}
+
+function isVictory(state){return state.stage==='victory'||(state.stage==='stage5'&&state.stage5.solved);}
+
+function progressDots(state){
+  return STAGES.slice(1,6).map((st,i)=>{
+    const n=i+1;
+    if(state.completed.includes(st))return'done';
+    if(state.stage===st)return'active';
+    return'';
+  });
+}
+
+function exportState(state){return clone(state);}
+
+return{
+  STAGES,STAGE_NAMES,TOTAL_STAGES,
+  STAGE1_FREEZE_MS,STAGE1_PAUSE_INTERVAL_MS,
+  STAGE3_PERIOD_MS,STAGE3_TOLERANCE,
+  STAGE5_REQUIRED,STAGE5_TIME_MS,
+  PARADOX_QUESTIONS,
+  createState,clone,isValidStage,stageIndex,canAdvance,advanceStage,
+  stage1Init,stage1Tick,stage1Catch,stage1FleePos,
+  stage2Scenario,stage2Statement,stage2Choose,
+  stage3Phase,stage3InWindow,stage3Click,
+  stage4Question,stage4Answer,
+  stage5Sequence,stage5StartRound,stage5Submit,
+  isVictory,progressDots,exportState
+};
+})();
+/* GAME_ENGINE_END */
+
+const AudioFX=(function(){
+let ctx=null;
+function ac(){if(!ctx)ctx=new(window.AudioContext||window.webkitAudioContext)();return ctx;}
+function tone(freq,dur,type,vol){
+  const c=ac(),o=c.createOscillator(),g=c.createGain();
+  o.type=type||'square';o.frequency.value=freq;
+  g.gain.setValueAtTime(vol||.08,c.currentTime);
+  g.gain.exponentialRampToValueAtTime(.001,c.currentTime+dur);
+  o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+dur);
+}
+return{
+  click:()=>tone(880,.06,'square',.06),
+  ok:()=>{tone(523,.08);setTimeout(()=>tone(784,.12),80);},
+  err:()=>tone(180,.2,'sawtooth',.1),
+  teleport:()=>tone(1200,.03,'sine',.04),
+  freeze:()=>tone(440,.15,'triangle',.07),
+  wave:()=>tone(660,.04,'sine',.03),
+  win:()=>{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>tone(f,.15,'square',.07),i*120));}
+};
+})();
+
+const UI=(function(){
+const $=id=>document.getElementById(id);
+let state=GameEngine.createState();
+let raf=0,stage3T0=0,stage5Seed=7;
+let btnX=40,btnY=40,mx=0,my=0;
+const screen=$('screen'),progress=$('progress');
+
+function setState(s){state=s;render();}
+
+function renderProgress(){
+  const dots=GameEngine.progressDots(state);
+  progress.innerHTML=dots.map((d,i)=>`<div class="dot ${d}" title="Stage ${i+1}"></div>`).join('');
+}
+
+function showMsg(el,txt,cls){el.innerHTML=`<div class="msg ${cls}">${txt}</div>`;}
+
+function render(){
+  renderProgress();
+  if(state.stage==='intro')renderIntro();
+  else if(state.stage==='stage1')renderStage1();
+  else if(state.stage==='stage2')renderStage2();
+  else if(state.stage==='stage3')renderStage3();
+  else if(state.stage==='stage4')renderStage4();
+  else if(state.stage==='stage5')renderStage5();
+  else renderVictory();
+}
+
+function renderIntro(){
+  screen.innerHTML=`<div class="panel"><h2>System Boot</h2><p>Five paradoxes stand between you and the exit. Each stage breaks a different rule of reality.</p><p class="hint">Stage 1: The button teleports. Stage 2: One guard lies. Stage 3: Collapse the wave. Stage 4: Self-referential logic. Stage 5: Prove you are a machine.</p><button class="btn" id="start-btn">Initialize</button></div>`;
+  $('start-btn').onclick=()=>{AudioFX.click();state=GameEngine.advanceStage(state);state=GameEngine.stage1Init(state);setState(state);};
+}
+
+function renderStage1(){
+  screen.innerHTML=`<div class="panel"><h2>Stage 1 — The Teleporting Button</h2><p>It flees your cursor. Catch it during the <span style="color:var(--lime)">lime freeze</span> or trap it with <kbd>Tab</kbd>+<kbd>Enter</kbd>.</p><div id="stage1-arena"><button class="btn" id="teleport-btn">Catch Me</button></div><p class="hint">Attempts: <span id="s1-att">${state.stage1.attempts}</span></p><div id="s1-msg"></div><button class="btn lime hidden" id="s1-next">Proceed</button></div>`;
+  const arena=$('stage1-arena'),btn=$('teleport-btn');
+  const aw=arena.clientWidth,ah=arena.clientHeight,bw=btn.offsetWidth,bh=btn.offsetHeight;
+  let frozen=false,freezeEnd=0;
+  const now=performance.now();
+  if(!state.stage1._boot){state.stage1._boot=now;state.stage1.nextPause=now+GameEngine.STAGE1_PAUSE_INTERVAL_MS;}
+  function loop(t){
+    if(state.stage!=='stage1')return;
+    frozen=t>=state.stage1.nextPause&&t<state.stage1.nextPause+GameEngine.STAGE1_FREEZE_MS;
+    if(t>=state.stage1.nextPause+GameEngine.STAGE1_PAUSE_INTERVAL_MS)state.stage1.nextPause+=GameEngine.STAGE1_PAUSE_INTERVAL_MS;
+    const pos=GameEngine.stage1FleePos(mx,my,btnX,btnY,aw,ah,bw,bh,frozen);
+    btnX=pos.x;btnY=pos.y;
+    btn.style.left=btnX+'px';btn.style.top=btnY+'px';
+    btn.classList.toggle('frozen',frozen);
+    if(frozen&&!freezeEnd){AudioFX.freeze();freezeEnd=1;}
+    if(!frozen)freezeEnd=0;
+    raf=requestAnimationFrame(loop);
+  }
+  cancelAnimationFrame(raf);raf=requestAnimationFrame(loop);
+  arena.onmousemove=e=>{const r=arena.getBoundingClientRect();mx=e.clientX-r.left;my=e.clientY-r.top;};
+  btn.onmousedown=e=>{e.preventDefault();AudioFX.teleport();const r=GameEngine.stage1Catch(state,'click',performance.now());};
+  btn.onclick=()=>{
+    const res=GameEngine.stage1Catch(state,frozen?'pause_click':'click',performance.now());
+    state=res.state;
+    $('s1-att').textContent=state.stage1.attempts;
+    if(res.ok){AudioFX.ok();showMsg($('s1-msg'),'Captured! The button is trapped.','ok');$('s1-next').classList.remove('hidden');}
+    else showMsg($('s1-msg'),frozen?'Too slow — freeze ended.':'It teleported away. Wait for the lime glow.','err');
+  };
+  document.onkeydown=e=>{
+    if(state.stage!=='stage1')return;
+    if(e.key==='Enter'&&document.activeElement===btn){
+      const res=GameEngine.stage1Catch(state,'keyboard',performance.now());
+      state=res.state;
+      AudioFX.ok();showMsg($('s1-msg'),'Keyboard trap engaged. Machines use focus.','ok');
+      $('s1-att').textContent=state.stage1.attempts;
+      $('s1-next').classList.remove('hidden');
+    }
+  };
+  $('s1-next').onclick=()=>{AudioFX.click();setState(GameEngine.advanceStage(state));};
+  if(state.stage1.caught)$('s1-next').classList.remove('hidden');
+}
+
+function renderStage2(){
+  const sc=GameEngine.stage2Scenario(42);
+  state.stage2.truthGuard=sc.truthGuard;state.stage2.safeDoor=sc.safeDoor;
+  const sA=GameEngine.stage2Statement(1,sc.truthGuard,sc.safeDoor);
+  const sB=GameEngine.stage2Statement(2,sc.truthGuard,sc.safeDoor);
+  screen.innerHTML=`<div class="panel"><h2>Stage 2 — The Liar's Gate</h2><p>One guard always tells the truth. One always lies. Find the safe door.</p><div class="guard-card"><strong>Guard ALPHA</strong> says: "${sA}"</div><div class="guard-card"><strong>Guard BETA</strong> says: "${sB}"</div><div class="doors"><div class="door" data-door="1"><strong>DOOR ALPHA</strong><div class="guard">Guard ALPHA</div></div><div class="door" data-door="2"><strong>DOOR BETA</strong><div class="guard">Guard BETA</div></div></div><div id="s2-msg"></div><button class="btn lime hidden" id="s2-next">Proceed</button></div>`;
+  document.querySelectorAll('.door').forEach(d=>d.onclick=()=>{
+    AudioFX.click();
+    const res=GameEngine.stage2Choose(state,+d.dataset.door);
+    state=res.state;
+    if(res.ok){AudioFX.ok();showMsg($('s2-msg'),'Logic holds. The safe door opens.','ok');$('s2-next').classList.remove('hidden');}
+    else{AudioFX.err();showMsg($('s2-msg'),'Paradox collapse. Try again.','err');}
+  });
+  $('s2-next').onclick=()=>{AudioFX.click();setState(GameEngine.advanceStage(state));};
+  if(state.stage2.solved)$('s2-next').classList.remove('hidden');
+}
+
+function renderStage3(){
+  screen.innerHTML=`<div class="panel"><h2>Stage 3 — The Schrödinger Choice</h2><p>Click <strong>Collapse</strong> when the wave peaks (lime zone) to avoid quantum decay.</p><div class="wave-hud"><span>Phase coherence</span><span class="peak" id="peak-ind">DECAY RISK</span></div><canvas id="wave-canvas" width="800" height="120"></canvas><button class="btn" id="collapse-btn">Collapse</button><div id="s3-msg"></div><button class="btn lime hidden" id="s3-next">Proceed</button></div>`;
+  const cv=$('wave-canvas'),cx=cv.getContext('2d');
+  stage3T0=performance.now();
+  function draw(t){
+    if(state.stage!=='stage3')return;
+    const phase=GameEngine.stage3Phase(t,stage3T0);
+    const wave=Math.sin(phase*Math.PI*2);
+    const peak=GameEngine.stage3InWindow(phase);
+    $('peak-ind').textContent=peak?'COHERENCE PEAK':'DECAY RISK';
+    $('peak-ind').style.color=peak?'var(--lime)':'var(--pink)';
+    const w=cv.width,h=cv.height;
+    cx.fillStyle='#080810';cx.fillRect(0,0,w,h);
+    cx.strokeStyle=peak?'#0f6':'#0ff';cx.lineWidth=2;cx.beginPath();
+    for(let x=0;x<w;x++){const p=x/w;const y=h/2-Math.sin(p*Math.PI*2+phase*Math.PI*2)*h*.38;cx.lineTo(x,y);}
+    cx.stroke();
+    if(peak){cx.fillStyle='rgba(0,255,102,.15)';cx.fillRect(0,0,w,h);}
+    raf=requestAnimationFrame(draw);
+  }
+  cancelAnimationFrame(raf);raf=requestAnimationFrame(draw);
+  $('collapse-btn').onclick=()=>{
+    AudioFX.wave();
+    const res=GameEngine.stage3Click(state,performance.now(),stage3T0);
+    state=res.state;
+    if(res.ok){AudioFX.ok();showMsg($('s3-msg'),'Wavefunction collapsed. You observed without decay.','ok');$('s3-next').classList.remove('hidden');}
+    else{AudioFX.err();showMsg($('s3-msg'),'Quantum decay! Click at the lime peak.','err');}
+  };
+  $('s3-next').onclick=()=>{AudioFX.click();setState(GameEngine.advanceStage(state));};
+  if(state.stage3.synced)$('s3-next').classList.remove('hidden');
+}
+
+function renderStage4(){
+  const q=GameEngine.stage4Question(state.stage4.index);
+  screen.innerHTML=`<div class="panel"><h2>Stage 4 — The Paradox Quiz</h2><p>Self-referential questions. Answers change their own truth value.</p><div class="quiz-q">${q?q.text:'...'}</div><div class="quiz-opts"><button class="btn" data-ans="yes">Yes</button><button class="btn pink" data-ans="no">No</button></div><p class="hint">Question ${state.stage4.index+1} / ${GameEngine.PARADOX_QUESTIONS.length}</p><div id="s4-msg"></div><button class="btn lime hidden" id="s4-next">Proceed</button></div>`;
+  document.querySelectorAll('[data-ans]').forEach(b=>b.onclick=()=>{
+    AudioFX.click();
+    const res=GameEngine.stage4Answer(state,b.dataset.ans);
+    state=res.state;
+    if(res.ok){
+      AudioFX.ok();
+      if(state.stage4.solved){showMsg($('s4-msg'),'All paradoxes resolved.','ok');$('s4-next').classList.remove('hidden');}
+      else{showMsg($('s4-msg'),'Stable answer. Next paradox...','ok');setTimeout(()=>render(),600);}
+    }else{AudioFX.err();showMsg($('s4-msg'),'Logical paradox — try the other truth.','err');}
+  });
+  $('s4-next').onclick=()=>{AudioFX.click();setState(GameEngine.advanceStage(state));};
+  if(state.stage4.solved)$('s4-next').classList.remove('hidden');
+}
+
+function renderStage5(){
+  if(!state.stage5.current)state=GameEngine.stage5StartRound(state,performance.now(),stage5Seed);
+  screen.innerHTML=`<div class="panel"><h2>Stage 5 — The Reverse Turing Test</h2><p>Prove you are a <strong>machine</strong>. Answer instantly — hesitation fails.</p><div id="turing-prompt">${state.stage5.current.prompt}</div><div id="turing-timer"><div id="turing-timer-fill"></div></div><input type="number" id="turing-in" class="btn" style="width:100%;text-align:center" placeholder="Answer" autocomplete="off"><p class="hint">Correct: ${state.stage5.correct} / ${GameEngine.STAGE5_REQUIRED}</p><div id="s5-msg"></div><button class="btn lime hidden" id="s5-next">Proceed</button></div>`;
+  const fill=$('turing-timer-fill'),inp=$('turing-in');
+  inp.focus();
+  const t0=performance.now(),deadline=state.stage5.deadline;
+  function tick(){
+    if(state.stage!=='stage5')return;
+    const left=Math.max(0,deadline-performance.now());
+    fill.style.width=(left/GameEngine.STAGE5_TIME_MS*100)+'%';
+    if(left>0)requestAnimationFrame(tick);
+    else if(!state.stage5.solved){AudioFX.err();showMsg($('s5-msg'),'Too human. Machines answer in <2.5s.','err');state=GameEngine.stage5StartRound(state,performance.now(),stage5Seed);}
+  }
+  requestAnimationFrame(tick);
+  function submit(){
+    const res=GameEngine.stage5Submit(state,inp.value,performance.now());
+    state=res.state;
+    if(res.ok){
+      AudioFX.ok();
+      if(state.stage5.solved){showMsg($('s5-msg'),'Machine verified.','ok');$('s5-next').classList.remove('hidden');}
+      else{showMsg($('s5-msg'),'Accepted. Next sequence...','ok');setTimeout(()=>render(),500);}
+    }else{
+      AudioFX.err();
+      const msgs={too_human:'Response too slow.',wrong_math:'Incorrect computation.',no_round:'No active round.'};
+      showMsg($('s5-msg'),msgs[res.reason]||'Error','err');
+      if(res.reason!=='too_human')state=GameEngine.stage5StartRound(state,performance.now(),stage5Seed);
+      setTimeout(()=>render(),800);
+    }
+  }
+  inp.onkeydown=e=>{if(e.key==='Enter')submit();};
+  $('s5-next').onclick=()=>{AudioFX.click();state=GameEngine.advanceStage(state);AudioFX.win();setState(state);};
+  if(state.stage5.solved)$('s5-next').classList.remove('hidden');
+}
+
+function renderVictory(){
+  const t=state.stage1.attempts+state.stage3.clicks+state.stage5.correct;
+  screen.innerHTML=`<div class="panel" id="victory"><div class="trophy">◈</div><h2>Paradox Resolved</h2><p>All five stages collapsed into truth. You bent logic and proved machine nature.</p><div class="stats"><div><div class="stat-val">${state.completed.length}</div><div class="stat-lbl">Stages Cleared</div></div><div><div class="stat-val">${state.stage1.attempts}</div><div class="stat-lbl">Button Attempts</div></div><div><div class="stat-val">${state.stage5.correct}</div><div class="stat-lbl">Machine Proofs</div></div></div><button class="btn" id="restart-btn">Reboot System</button></div>`;
+  $('restart-btn').onclick=()=>{AudioFX.click();state=GameEngine.createState();setState(state);};
+}
+
+return{init(){render();}};
+})();
+
+document.addEventListener('DOMContentLoaded',()=>UI.init());
+</script>
+</body>
+</html>
